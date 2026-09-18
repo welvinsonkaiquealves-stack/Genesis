@@ -1,0 +1,40 @@
+GÊNESIS DIGITAL v2
+
+PONTO DE RETOMADA
+-----------------
+Leia CONTINUIDADE.md. É o documento canônico de estado.
+
+COMO RODAR
+----------
+  python3 -m http.server 8741
+
+  A Terra, do espaço ao chão:    http://127.0.0.1:8741/fase2b/
+  Instrumentação da Fase 2A:     http://127.0.0.1:8741/fase2a/
+
+TESTES (Node puro, sem dependência)
+-----------------------------------
+  node testes/e1e2_endereco.js       endereço, 100.000 amostras
+  node testes/superficie.js          superfície, S1 a S14
+  node --expose-gc testes/custo.js   custo, memória, determinismo
+  node testes/hash.js 20260101       hash do mundo
+  node testes/pagina.js              500 passos de zoom no navegador
+  node testes/gerar_artefato.js      versão publicável
+
+ARQUIVOS DE LEI (não alterar sem relatório e autorização)
+---------------------------------------------------------
+  v2/core/util.js      0bf52b6f8d5e4bc1c6a0d876ca055cc4
+  v2/core/data.js      5151abaf008677d3e6518c65c7bd516c
+  v2/core/brain.js     a65aad160e01ee11edf39591cc3a8d67
+  v2/core/world.js     9bcab37469b0217778317efcd2e162a3
+  fase1/terra.js       a5a62e6da602c23e088b1181a44537e5
+  _build/three.min.js  eb8549863a97355411c3259a3f93b8e1
+
+NÃO SÃO LEI (escritos nesta linhagem, alteráveis com relatório)
+--------------------------------------------------------------
+  v2/core/ambiente.js    contrato genesis.ambiente/1
+  v2/core/superficie.js  contrato genesis.superficie/1
+  fase2a/endereco.js     contrato genesis.endereco/2a.3
+
+NÃO APAGAR
+----------
+  Arquivos .l2s.tmp_obj_* pertencem ao storage do OmniBot.

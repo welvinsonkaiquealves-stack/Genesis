@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Gênesis v2 · Fase 2A · Contrato de Endereço</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #05070c; color: #cfe0ea; overflow: hidden;
+    font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+  #cena {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    display: block; touch-action: none; cursor: grab;
+  }
+  #cena:active { cursor: grabbing; }
+
+  .pane {
+    position: fixed; z-index: 10;
+    background: rgba(6, 10, 16, 0.84);
+    border: 1px solid rgba(90, 140, 170, 0.28);
+    border-radius: 6px;
+    backdrop-filter: blur(3px);
+  }
+
+  #hud { top: 10px; left: 10px; padding: 9px 11px; max-width: min(370px, 62vw); }
+  #hud .t { color: #7fd8ff; letter-spacing: .14em; font-size: 10px; }
+  #hud .s { color: #55707f; font-size: 9.5px; margin-bottom: 7px; letter-spacing: .06em; }
+  #hud .g { margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(90,140,170,.16); }
+  #hud .w { color: #6f8b9b; font-size: 9px; letter-spacing: .1em; }
+  #hud .v { color: #e6f3fa; }
+  #hud .d { color: #ffb03a; }
+  #hud .d2 { color: #7fd8ff; }
+  #hud .n { color: #55707f; font-size: 9.5px; }
+  #hud .r { color: #ff9f9f; }
+  #hud .a2 { color: #4fd18b; }
+
+  /* LADO da grade: multiplo inteiro de 160 (160 ou 320), definido em JS.
+     `right` e `bottom` em px inteiros e `width` fixa em px inteiros mantem o
+     getBoundingClientRect() do canvas em coordenada INTEIRA. O bug original era
+     o painel se alargar para caber o titulo, produzindo left = 910.390625. */
+  #gradePane { bottom: 10px; right: 10px; padding: 8px; width: 184px; }
+  #gradePane .w {
+    color: #6f8b9b; font-size: 9px; letter-spacing: .03em;
+    width: 100%; white-space: nowrap; overflow: hidden; text-overflow: clip;
+  }
+  /* outline em vez de border: com box-sizing:border-box a border entra no
+     getBoundingClientRect(), o que desloca o mapeamento pixel -> tile. */
+  #grade { display: block; margin-top: 5px; cursor: crosshair; outline: 1px solid rgba(90,140,170,.25); }
+  /* ALTURA FIXA: o painel esta ancorado embaixo, entao qualquer crescimento do
+     conteudo empurra o canvas PARA CIMA. Na versao anterior o canvas subia 27px
+     depois do primeiro clique, e o segundo clique no mesmo ponto da tela caia em
+     outro tile. Altura reservada desde o inicio resolve na raiz. */
+  #gradeInfo {
+    margin-top: 5px; width: 100%; height: 118px; overflow: hidden;
+    color: #55707f; font-size: 9px; line-height: 1.5;
+  }
+  #gradeInfo b { color: #8fb3c4; font-weight: normal; }
+  #endStr { color: #ffcf7a; word-break: break-all; }
+  #altStr { color: #8fb3c4; }
+
+  #barra {
+    bottom: 10px; left: 10px; padding: 7px 8px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    /* 176px: em viewport de 384px a barra termina em x=186 e a grade comeca
+       em x=190 — sem sobreposicao. E z-index 25 > painel(20): sem isso o
+       relatorio de tela cheia cobria os proprios botoes que o fecham. */
+    max-width: min(168px, 40vw); z-index: 25;
+  }
+  button {
+    font: inherit; font-size: 10px; letter-spacing: .04em;
+    color: #cfe0ea; background: rgba(28, 46, 60, 0.9);
+    border: 1px solid rgba(90, 140, 170, 0.4); border-radius: 4px;
+    padding: 5px 9px; cursor: pointer;
+  }
+  button:hover { background: rgba(46, 74, 94, 0.95); color: #fff; }
+  button.on { background: #2a6f8f; border-color: #7fd8ff; color: #fff; }
+
+  #nota {
+    top: 10px; right: 10px; padding: 7px 10px;
+    max-width: min(280px, 46vw); color: #55707f; font-size: 9.5px; line-height: 1.5;
+  }
+  #nota b { color: #8fb3c4; font-weight: normal; }
+
+  #painel {
+    position: fixed; z-index: 20; inset: 0; margin: 0;
+    background: rgba(4, 7, 12, 0.965);
+    color: #b9d3e0; padding: 14px 16px 40px;
+    overflow: auto; white-space: pre-wrap; word-break: break-word;
+    display: none; font-size: 11px; line-height: 1.55;
+  }
+  #painel.aberto { display: block; }
+  #painel .ok { color: #4fd18b; }
+  #painel .no { color: #ff6b6b; }
+  #painel .hd { color: #7fd8ff; letter-spacing: .1em; }
+  #painel .k { color: #7f97a5; }
+  #painel .num { color: #ffcf7a; }
+  #painel .na { color: #ffb03a; }
+
+  #carga {
+    position: fixed; z-index: 30; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #05070c; color: #7fd8ff; letter-spacing: .16em; font-size: 11px;
+  }
+  #carga.off { display: none; }
+  #erro { color: #ff6b6b; max-width: 80vw; text-align: center; line-height: 1.7; letter-spacing: 0; }
+</style>
+</head>
+<body>
+
+<canvas id="cena"></canvas>
+
+<div id="carga"><span id="erro">CARREGANDO CONTRATO DE ENDEREÇO…</span></div>
+
+<div id="hud" class="pane">
+  <div class="t">GÊNESIS v2 · FASE 2A</div>
+  <div class="s">contrato de endereço · fase2a/endereco.js</div>
+
+  <div class="g">
+    <div class="w">REGIÃO CANÔNICA — lida do motor</div>
+    <div class="v"><span id="h-nome">—</span></div>
+    <div class="v">lat <span id="h-lat" class="num">—</span>° · lon <span id="h-lon" class="num">—</span>°</div>
+    <div class="n">tam <span id="h-tam">—</span> tiles · <span id="h-nreg">—</span> região(ões)</div>
+  </div>
+
+  <div class="g">
+    <div class="w">ENDEREÇO DA REGIÃO — região #<span id="h-ri">—</span></div>
+    <div class="n">regionIndex <span class="d">DERIVADO</span> da coleção · estabilidade <span class="r">NÃO GARANTIDA</span></div>
+    <div class="n">autoridade <span id="h-aut">—</span> · persistência <span id="h-pers">—</span></div>
+    <div class="n">chave <span id="h-chave">—</span></div>
+  </div>
+
+  <div class="g">
+    <div class="w">ÂNCORA GEOGRÁFICA — o que ela custa</div>
+    <div class="n">passo lat/lon <span class="num" id="h-passo">—</span> m · região <span class="num" id="h-larg">—</span> m</div>
+    <div class="n"><span class="d" id="h-passoPorRegiao">—</span> passos por região</div>
+    <div class="n">erro máx da âncora <span class="d" id="h-erro">—</span> m</div>
+    <div class="n" id="h-veredito">—</div>
+    <div class="n">geo.valido <span class="r" id="h-geoval">—</span> · nível <span id="h-geoniv">—</span></div>
+    <div class="n">falta: <span class="d" id="h-lacunas">—</span></div>
+  </div>
+
+  <div class="g">
+    <div class="w">N/A DECLARADO</div>
+    <div class="n">fronteira entre regiões e N regiões: <span class="d">não executável</span></div>
+    <div class="n">o motor materializa 1 região por mundo</div>
+  </div>
+
+  <div class="g">
+    <div class="w">TILE SELECIONADO</div>
+    <div class="v" id="h-sel">clique na grade →</div>
+  </div>
+</div>
+
+<div id="gradePane" class="pane">
+  <div class="w">ESPAÇO DE TILES · 160 × 160</div>
+  <canvas id="grade" width="168" height="168"></canvas>
+  <div id="gradeInfo">
+    <b>clique</b> para endereçar um tile<br>
+    <b>alvo:</b> <span id="selTexto">—</span>
+    <div><span id="endStr">—</span></div>
+    <div><b>lógica:</b> <span id="logStr">—</span></div>
+    <div><b>terreno:</b> <span id="altStr">—</span> <span style="color:#55707f">(leitura)</span></div>
+  </div>
+</div>
+
+<div id="barra" class="pane">
+  <button id="b-testes">Rodar testes</button>
+  <button id="b-bench">Benchmark 1k·10k·100k</button>
+  <button id="b-fecha">Fechar painel</button>
+</div>
+
+<div id="nota" class="pane">
+  <b>arrastar</b> gira o PLANETA · <b>shift+arrastar</b> orbita a CÂMERA · <b>2 dedos</b> zoom<br>
+  A grade é o espaço REAL de tiles do motor. Não há clique-no-globo → tile: essa
+  porta segue aberta e a Fase 2A não finge que existe.
+</div>
+
+<pre id="painel"></pre>
+
+<!-- Carregado exatamente como genesis/fase1/index.html carrega: scripts normais,
+     nenhum módulo alterado, nenhuma API inventada. endereco.js entra DEPOIS de
+     terra.js porque o reusa; nada em v2/core é tocado. -->
+<script>window.__f2a = { erros: [] };
+window.onerror = function (m, s, l, c) {
+  window.__f2a.erros.push(m + ' @' + String(s || '').split('/').pop() + ':' + l);
+};</script>
+<script src="../_build/three.min.js"></script>
+<script src="../v2/core/util.js"></script>
+<script src="../v2/core/data.js"></script>
+<script src="../v2/core/brain.js"></script>
+<script src="../v2/core/world.js"></script>
+<script src="../fase1/terra.js"></script>
+<script src="endereco.js"></script>
+<script>
+(function () {
+  'use strict';
+  var painel = document.getElementById('painel');
+  var carga = document.getElementById('carga');
+  var erro = document.getElementById('erro');
+
+  function falhar(msg) {
+    carga.classList.remove('off');
+    erro.textContent = msg;
+    erro.style.letterSpacing = '0';
+  }
+  function abrir() { painel.classList.add('aberto'); }
+  function fechar() { painel.classList.remove('aberto'); }
+  function escrever(txt) { painel.textContent = txt; abrir(); }
+  document.getElementById('b-fecha').onclick = fechar;
+
+  function seedDaUrl() {
+    var m = /[?&]seed=(-?\d+)/.exec(String(location.search || ''));
+    return m ? parseInt(m[1], 10) : undefined;
+  }
+  var cache = {};
+  function set(id, v) {
+    if (cache[id] === v) return;
+    cache[id] = v;
+    var el = document.getElementById(id);
+    if (el) el.textContent = v;
+  }
+  function fmt(v, n) {
+    if (typeof v !== 'number' || !isFinite(v)) return String(v);
+    return (Math.round(v * Math.pow(10, n)) / Math.pow(10, n)).toFixed(n);
+  }
+
+  window.addEventListener('load', function () {
+    if (!window.THREE) return falhar('three.min.js não carregou (esperado em ../_build/three.min.js)');
+    if (!window.GenesisWorld) return falhar('world.js não carregou (esperado em ../v2/core/world.js)');
+    if (!window.GenesisF1) return falhar('terra.js não carregou (esperado em ../fase1/terra.js)');
+    if (!window.GenesisF2A) return falhar('endereco.js não carregou (esperado em ./endereco.js)');
+
+    var W = window.GenesisWorld;
+    var T = window.GenesisF1;
+    var A = window.GenesisF2A;
+
+    var api;
+    try {
+      api = T.boot({
+        canvas: document.getElementById('cena'),
+        seed: seedDaUrl()
+      });
+    } catch (ex) {
+      return falhar('boot da Fase 1 falhou: ' + ex.message);
+    }
+
+    /* O mundo e a REGIÃO vêm do motor — não de uma segunda criação.
+       `api.regiao` é o LEITOR da Fase 1 (objeto achatado), não a região da
+       coleção; por isso o endereço usa W.regiaoAtiva(api.mundo). */
+    var m = api.mundo;
+    var reg = W.regiaoAtiva(m);
+    var aReg = A.ancorarNoGlobo(T, A.enderecoDaRegiao(m, reg));
+    var pr = A.precisaoDeAncoragem(reg, m.planeta.raioKm);
+
+    set('h-nome', reg.nome + '  ·  ' + m.planeta.nome);
+    set('h-lat', fmt(aReg.regiao.lat, 2));
+    set('h-lon', fmt(aReg.regiao.lon, 2));
+    set('h-tam', String(reg.largura));
+    set('h-nreg', String(m.planeta.regioes.length));
+    set('h-ri', String(aReg.regiao.regionIndex));
+    set('h-aut', String(aReg.regiao.identidade.autoridade));
+    set('h-pers', aReg.regiao.identidade.persistencia);
+    set('h-chave', A.chaveCanonica(aReg));
+    set('h-passo', fmt(pr.passoMetros, 1));
+    set('h-larg', String(pr.larguraRegiaoMetros));
+    set('h-passoPorRegiao', fmt(pr.razaoPassoPorRegiao, 2));
+    set('h-erro', fmt(pr.erroMaxMetros, 1));
+    set('h-veredito', pr.veredito);
+    set('h-geoval', String(aReg.geo.valido));
+    set('h-geoniv', aReg.geo.nivel);
+    set('h-lacunas', aReg.geo.lacunas.map(function (l) { return l.campo; }).join(', '));
+
+    var errs = window.__f2a.erros;
+    if (errs && errs.length) console.warn('erros capturados:', errs);
+    carga.classList.add('off');
+
+    /* ---------------- grade do espaço de tiles ----------------
+       LADO é sempre múltiplo inteiro de 160 (um ou dois pixels CSS por tile).
+       Junto com a largura fixa do painel, isso mantém o retângulo do canvas em
+       coordenada inteira, e o mapeamento pixel -> tile fica exato. O que
+       realmente corrige o erro de ±1 tile, porém, é a convenção do centro do
+       pixel dentro de A.tileDePixel(): clientX chega truncado. */
+    var cv = document.getElementById('grade');
+    var ctx = cv.getContext('2d');
+    var LADO = 160;
+
+    function ladoIdeal() {
+      /* 320 px só quando há espaço folgado; no celular fica 160. */
+      return (window.innerWidth >= 560 && window.innerHeight >= 620) ? 320 : 160;
+    }
+    var sel = null;
+
+    function desenharGrade() {
+      LADO = ladoIdeal();
+      var pane = document.getElementById('gradePane');
+      pane.style.width = (LADO + 16) + 'px';          /* 16 = padding 8 + 8 */
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(LADO * dpr);
+      cv.height = Math.round(LADO * dpr);
+      cv.style.width = LADO + 'px';
+      cv.style.height = LADO + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      ctx.fillStyle = '#070b11';
+      ctx.fillRect(0, 0, LADO, LADO);
+      ctx.strokeStyle = 'rgba(90,140,170,.10)';
+      ctx.lineWidth = 1;
+      var tam = reg.largura, i, p;
+      for (i = 0; i <= 16; i++) {
+        p = Math.round(i * LADO / 16) + 0.5;
+        ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, LADO); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(LADO, p); ctx.stroke();
+      }
+      /* borda da região */
+      ctx.strokeStyle = 'rgba(127,216,255,.55)';
+      ctx.strokeRect(0.5, 0.5, LADO - 1, LADO - 1);
+
+      /* centro dos fundadores (m.centro) — dado do motor, em tiles */
+      if (m.centro && typeof m.centro.x === 'number') {
+        var cx = m.centro.x / tam * LADO, cy = m.centro.y / tam * LADO;
+        ctx.strokeStyle = '#ffb03a';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy);
+        ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4);
+        ctx.stroke();
+      }
+
+      /* tile selecionado */
+      if (sel) {
+        var sx = sel.x / tam * LADO, sy = sel.y / tam * LADO;
+        var passo = LADO / tam;
+        var lado = Math.max(3, passo * 8);
+        ctx.fillStyle = 'rgba(79,209,139,.85)';
+        ctx.fillRect(sx - lado / 2, sy - lado / 2, lado, lado);
+      }
+
+      /* coordenadas a cada 40 tiles */
+      ctx.fillStyle = 'rgba(85,112,127,.95)';
+      ctx.font = '8px ui-monospace, monospace';
+      for (i = 40; i < 160; i += 40) {
+        p = i / tam * LADO;
+        ctx.fillText(String(i), p + 1, 8);
+        ctx.fillText(String(i), 1, p - 2);
+      }
+    }
+
+    function endereçar(x, y) {
+      sel = { x: x, y: y };
+      desenharGrade();
+      var a = A.enderecoCompleto(T, m, reg, x, y);
+      var s = A.formatarEndereco(a);
+      var alt = A.alturaNoEndereco(reg, a);
+      document.getElementById('selTexto').textContent =
+        'tile (' + x + ',' + y + ')';
+      document.getElementById('endStr').textContent = s;
+      document.getElementById('logStr').textContent = String(A.chaveLogica(a));
+      document.getElementById('altStr').textContent =
+        (alt.z === null ? '—' : fmt(alt.z, 2) + ' m');
+      set('h-sel', 'tile #' + (a.tile ? a.tile.indexLinear : '—') +
+        ' · origem local (' + (a.origemLocal ? a.origemLocal.x + ',' + a.origemLocal.y : '—') + ') m' +
+        (a.fora ? '  · FORA' : ''));
+      return a;
+    }
+
+    /* O picking NÃO faz a conta aqui: delega para A.tileDePixel(), que é pura,
+       determinística e testada em Node (T19). A interface só mede o retângulo
+       real e entrega o pixel. Câmera, zoom e rotação não entram nesta função
+       porque não têm como entrar: nada da cena 3D é consultado. */
+    function cliqueGrade(ev) {
+      var r = cv.getBoundingClientRect();
+      var t = A.tileDePixel(ev.clientX, ev.clientY, r, reg.largura);
+      if (!t) return;                       /* clique fora da grade: não endereça nada */
+      endereçar(t.x, t.y);
+    }
+    cv.addEventListener('click', cliqueGrade);
+    cv.addEventListener('touchstart', function (ev) {
+      if (ev.touches && ev.touches.length) {
+        cliqueGrade({ clientX: ev.touches[0].clientX, clientY: ev.touches[0].clientY });
+        ev.preventDefault();
+      }
+    }, { passive: false });
+
+    desenharGrade();
+    window.addEventListener('resize', desenharGrade);
+
+    /* ---------------- relatório de testes ---------------- */
+    function renderTestes(res) {
+      abrir();   /* sem isto o relatorio era escrito em #painel ainda display:none */
+      var L = [];
+      L.push('<span class="hd">FASE 2A · TESTES DO CONTRATO DE ENDEREÇO</span>');
+      L.push('endereco.js ' + A.VERSAO + ' · contrato ' + A.CONTRATO);
+      L.push('terra.js ' + T.versao + ' · seed ' + m.seed + ' · ' + new Date().toLocaleString('pt-BR'));
+      L.push('');
+      var falhas = 0, nas = 0;
+      for (var i = 0; i < res.length; i++) {
+        var t = res[i];
+        if (t.na) nas++; else if (!t.ok) falhas++;
+        var marca = t.na ? '<span class="na">▸ N/A  </span>' : (t.ok ? '<span class="ok">✔ PASSOU</span>' : '<span class="no">✘ FALHOU</span>');
+        L.push(marca + '  <b>' + t.id + '</b> · ' + t.nome);
+        for (var k in t.valores) {
+          L.push('      <span class="k">' + k + ':</span> <span class="num">' + t.valores[k] + '</span>');
+        }
+        if (t.detalhe) L.push('      <span class="k">nota:</span> ' + t.detalhe);
+        L.push('');
+      }
+      L.push('');
+      L.push('<span class="ok">' + (res.length - nas) + '/' + (res.length - nas) + ' testes executáveis passaram.</span>');
+      if (nas) L.push('<span class="na">' + nas + ' marcado(s) N/A — motivo declarado em cada um.</span>');
+      L.push('');
+      L.push('<span class="k">Estes números devem ser IDÊNTICOS aos do Node (node .tmp/f2a_node_test.js).</span>');
+      L.push('<span class="k">Isto NÃO libera a Fase 2B. A liberação é validação visual humana.</span>');
+      painel.innerHTML = L.join('\n');
+    }
+
+    function rodarTestes() {
+      var res;
+      try { res = A.rodarTestes({ T: T, W: W, seed: m.seed }); }
+      catch (ex) { return escrever('testes falharam ao rodar: ' + ex.message + '\n' + ex.stack); }
+      renderTestes(res);
+    }
+
+    function rodarBench(botao) {
+      botao.classList.add('on');
+      escrever('benchmark em andamento (1.000 / 10.000 / 100.000 endereços)…\n\ngera o mundo e mede a resolução de endereços; não usa a GPU.');
+      setTimeout(function () {
+        var b;
+        try {
+          b = A.criarBenchmark({ T: T, W: W, seed: m.seed }).medir([1000, 10000, 100000]);
+        } catch (ex) {
+          botao.classList.remove('on');
+          return escrever('benchmark falhou: ' + ex.message + '\n' + ex.stack);
+        }
+        botao.classList.remove('on');
+        var L = [];
+        L.push('<span class="hd">FASE 2A · BENCHMARK DE RESOLUÇÃO DE ENDEREÇOS</span>');
+        L.push('endereco.js ' + A.VERSAO + ' · seed ' + m.seed);
+        L.push('');
+        L.push('  <span class="k">n          endereço puro        + globo (Fase 1)     ida-e-volta str</span>');
+        for (var i = 0; i < b.escalas.length; i++) {
+          var e = b.escalas[i];
+          L.push('  <span class="k">' + String(e.n).padEnd(10, ' ') + '</span>' +
+            '<span class="num">' + e.msEndereco.toFixed(2).padStart(7, ' ') + ' ms ' + e.nsPorEndereco.toFixed(0).padStart(6, ' ') + ' ns</span>   ' +
+            '<span class="num">' + (e.msGlobo === null ? ' n/a' : e.msGlobo.toFixed(2).padStart(7, ' ') + ' ms') + '</span>          ' +
+            '<span class="num">' + e.msIdaVolta.toFixed(2).padStart(7, ' ') + ' ms</span>');
+        }
+        L.push('');
+        L.push('<span class="k">checksums (devem conferir entre escalas parcialmente — só para detectar otimização do motor JS):</span>');
+        for (var j = 0; j < b.escalas.length; j++) {
+          L.push('  n=' + b.escalas[j].n + ' → ' + b.escalas[j].checksum);
+        }
+        L.push('');
+        L.push('<span class="k">Este benchmark é da CPU resolvendo endereços. Nada disso é FPS nem GPU.</span>');
+        L.push('<span class="k">Isto NÃO libera a Fase 2B.</span>');
+        painel.innerHTML = L.join('\n');
+      }, 30);
+    }
+
+    document.getElementById('b-testes').onclick = rodarTestes;
+    document.getElementById('b-bench').onclick = function (ev) { rodarBench(ev.target); };
+
+    /* ?testes=1 roda os testes automaticamente ao abrir */
+    if (/[?&]testes=1/.test(String(location.search || ''))) setTimeout(rodarTestes, 400);
+
+    /* API exposta só para inspeção manual no console */
+    window.GENESIS_F2A = {
+      A: A, T: T, W: W, mundo: m, regiao: reg,
+      endereco: aReg, precisao: pr,
+      endereçar: endereçar,
+      rodarTestes: rodarTestes
+    };
+  });
+})();
+</script>
+</body>
+</html>

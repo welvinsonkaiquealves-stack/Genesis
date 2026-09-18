@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Gênesis · Terra</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%231d3a44'/%3E%3Cpath d='M8 18q5-6 9-2t7-1' stroke='%237fb0a6' fill='none' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --tinta:#dfe3e2; --fraco:#8e9a99; --linha:#242b2c;
+    --fundo:#080b0c; --painel:rgba(10,14,15,.86); --acento:#7fb0a6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--fundo);
+    color:var(--tinta);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  #palco{position:fixed;inset:0;overflow:hidden;touch-action:none}
+  #globo,#sup{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #globo{z-index:1}
+  #sup{z-index:2;image-rendering:auto}
+  #vetorial{position:absolute;inset:0;z-index:3;width:100%;height:100%;pointer-events:none}
+
+  .hud{position:absolute;z-index:10;pointer-events:none}
+  #topo{top:0;left:0;right:0;padding:10px 12px calc(10px + env(safe-area-inset-top,0px));
+    padding-top:calc(10px + env(safe-area-inset-top,0px));
+    background:linear-gradient(180deg,rgba(8,11,12,.92),rgba(8,11,12,0))}
+  #titulo{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--fraco)}
+  #relogio{font-size:20px;font-weight:600;letter-spacing:.02em;margin-top:2px}
+  #clima{font-size:11px;color:var(--fraco);margin-top:1px}
+
+  #escada{position:absolute;right:10px;top:calc(78px + env(safe-area-inset-top,0px));
+    z-index:10;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  .deg{font-size:10px;letter-spacing:.1em;color:#4d5657;text-align:right;
+    padding:2px 6px;border-right:2px solid #1d2425;transition:color .18s,border-color .18s}
+  .deg.on{color:var(--acento);border-right-color:var(--acento)}
+
+  #baixo{position:absolute;left:0;right:0;bottom:0;z-index:10;
+    padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));
+    background:linear-gradient(0deg,rgba(8,11,12,.95),rgba(8,11,12,0))}
+  #leitura{font-size:11.5px;color:var(--fraco);min-height:52px;white-space:pre-wrap}
+  #leitura b{color:var(--tinta);font-weight:600}
+  #barra{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;pointer-events:auto}
+  button{font:inherit;font-size:11px;letter-spacing:.06em;color:var(--tinta);
+    background:rgba(28,35,36,.9);border:1px solid var(--linha);border-radius:2px;
+    padding:7px 10px;cursor:pointer;touch-action:manipulation}
+  button:active{background:#2b3435}
+  button.lig{border-color:var(--acento);color:var(--acento)}
+
+  #zoom{position:absolute;right:10px;bottom:calc(96px + env(safe-area-inset-bottom,0px));
+    z-index:11;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+  #zoom button{width:40px;height:40px;font-size:17px;padding:0;border-radius:3px}
+
+  #medidor{position:absolute;left:12px;top:calc(78px + env(safe-area-inset-top,0px));
+    z-index:10;font-size:10px;color:#54605f;line-height:1.5;pointer-events:none;display:none}
+  #medidor.on{display:block}
+  #regua{position:absolute;left:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));
+    z-index:10;pointer-events:none;font-size:10px;color:var(--fraco)}
+  #reguaBarra{height:3px;background:var(--fraco);margin-bottom:3px;
+    border-left:1px solid var(--fraco);border-right:1px solid var(--fraco)}
+  #erro{position:absolute;inset:0;z-index:99;background:#0b0e0f;color:#e08c7a;
+    padding:20px;font-size:12px;white-space:pre-wrap;overflow:auto;display:none}
+</style>
+</head>
+<body>
+<div id="palco">
+  <canvas id="globo"></canvas>
+  <canvas id="sup"></canvas>
+  <canvas id="vetorial"></canvas>
+</div>
+
+<div class="hud" id="topo">
+  <div id="titulo">Gênesis · Terra</div>
+  <div id="relogio">—</div>
+  <div id="clima">carregando</div>
+</div>
+
+<div id="escada">
+  <div class="deg" data-n="L0">L0 · globo</div>
+  <div class="deg" data-n="L1">L1 · órbita</div>
+  <div class="deg" data-n="L2">L2 · região</div>
+  <div class="deg" data-n="L3">L3 · chão</div>
+  <div class="deg" data-n="L4">L4 · célula</div>
+</div>
+
+<div id="medidor"></div>
+
+<div id="regua"><div id="reguaBarra"></div><span id="reguaTexto">—</span></div>
+
+<div id="zoom">
+  <button id="bMais" aria-label="aproximar">+</button>
+  <button id="bMenos" aria-label="afastar">−</button>
+</div>
+
+<div class="hud" id="baixo">
+  <div id="leitura">toque em qualquer ponto para ler o mundo ali</div>
+  <div id="barra">
+    <button id="bIlha">ir à ilha</button>
+    <button id="bEspaco">espaço</button>
+    <button id="bRodar" class="lig">rodando</button>
+    <button id="bVel">6 h/s</button>
+    <button id="bMed">medidor</button>
+  </div>
+</div>
+
+<div id="erro"></div>
+
+<script src="../_build/three.min.js"></script>
+<script src="../v2/core/util.js"></script>
+<script src="../v2/core/data.js"></script>
+<script src="../v2/core/brain.js"></script>
+<script src="../v2/core/world.js"></script>
+<script src="../v2/core/ambiente.js"></script>
+<script src="../v2/core/superficie.js"></script>
+<script src="../fase1/terra.js"></script>
+<script src="../fase2a/endereco.js"></script>
+<script>
+/* ============================================================================
+   GÊNESIS v2 — A TERRA, UMA COISA SÓ
+
+   Esta página não é uma galeria de vistas. É UM mundo, com UM eixo de zoom,
+   do espaço até um metro de chão. A variável que manda em tudo é
+   `metrosNaTela`. Dela saem: qual renderizador desenha, quantas oitavas de
+   detalhe entram, quando as duas camadas se cruzam, o que aparece de vida.
+
+   Duas camadas desenham:
+     · o globo 3D da Fase 1, intocado, para L0 e L1;
+     · a superfície 2D de v2/core/superficie.js para L2, L3 e L4.
+   Entre 1200 km e 400 km as duas desenham ao mesmo tempo e a opacidade cruza.
+   Por isso nunca existe um quadro vazio: a de baixo já está pronta antes de a
+   de cima sair.
+
+   Nada aqui é decoração desconectada. Cada árvore desenhada é um objeto de
+   m.plantas; cada bicho é um de m.animais; a inclinação da copa vem de
+   ambiente.respostaDaPlantaAoVento, que é viga engastada com a densidade real
+   da madeira. Se a simulação parar, a tela para junto.
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var U = window.GenesisUtil, D = window.GenesisData, W = window.GenesisWorld;
+  var AM = window.GenesisAmbiente, SU = window.GenesisSuperficie;
+  var T = window.GenesisF1, E = window.GenesisF2A;   /* terra.js publica GenesisF1 */
+
+  function morrer(msg) {
+    var el = document.getElementById('erro');
+    el.style.display = 'block';
+    el.textContent = 'FALHA AO MONTAR\n\n' + msg;
+  }
+  window.addEventListener('error', function (ev) {
+    morrer((ev.message || 'erro') + '\n' + (ev.filename || '') + ':' + (ev.lineno || ''));
+  });
+
+  if (!U || !W || !AM || !SU || !T || !E) {
+    return morrer('modulo ausente: ' +
+      [['util', U], ['world', W], ['ambiente', AM], ['superficie', SU], ['terra', T], ['endereco', E]]
+        .filter(function (p) { return !p[1]; }).map(function (p) { return p[0]; }).join(', '));
+  }
+
+  /* ---------- parâmetros ---------- */
+  var SEED = (function () {
+    var m = /[?&]seed=(\d+)/.exec(location.search);
+    return m ? (m[1] | 0) : (T.SEED_CANONICA || 20260101);
+  })();
+
+  var M_MAX = 4.2e7;        /* planeta inteiro na tela */
+  var M_MIN = 2.0;          /* dois metros de chão */
+
+  /* ---------- telas ---------- */
+  var cvGlobo = document.getElementById('globo');
+  var cvSup = document.getElementById('sup');
+  var cvVet = document.getElementById('vetorial');
+  var ctxSup = cvSup.getContext('2d', { alpha: false });
+  var ctxVet = cvVet.getContext('2d');
+  ctxSup.imageSmoothingEnabled = true;
+
+  /* O globo da Fase 1 sobe primeiro, e o MUNDO que ele já cria é o mundo
+     desta página. Boot cria um `W.criar({seed})` por dentro; criar outro aqui
+     seria gerar duas Terras com a mesma seed e deixá-las divergir no primeiro
+     tick. Uma seed, um mundo. */
+  var apiGlobo = null;
+  try {
+    apiGlobo = T.boot({ canvas: cvGlobo, seed: SEED });
+  } catch (e) {
+    return morrer('terra.boot falhou: ' + (e && e.message ? e.message : e) +
+                  '\n' + (e && e.stack ? e.stack : ''));
+  }
+  if (!apiGlobo) return morrer('terra.js nao montou o globo.');
+
+  /* O globo NÃO escuta o dedo: quem escuta é o palco, e a câmera é uma só.
+     Se os dois escutassem, um arrasto moveria o mundo duas vezes. */
+  cvGlobo.style.pointerEvents = 'none';
+
+  /* ---------- mundo ---------- */
+  var m = apiGlobo.mundo || W.criar({ seed: SEED });
+
+  /* O relógio do motor nasce em 00:00, e uma página que existe para mostrar a
+     Terra não pode abrir no breu. Adianta-se o RELÓGIO, não o estado: nada é
+     simulado a mais, só a hora do dia passa a ser oito da manhã. O efeito
+     colateral é que todo mundo nasce oito horas mais velho, o que é
+     consistente (as idades são calculadas contra este mesmo relógio). */
+  if (m.tempo && m.tempo.segMundo < 3600) m.tempo.segMundo = 8 * 3600;
+  var reg = W.regiaoAtiva(m);
+  var amb = AM.criar(W, m, { T: T });
+  var C = SU.criar({ W: W, T: T, E: E, A: AM }, m, { ambiente: amb });
+
+  /* ---------- câmera única ---------- */
+  var camara = { centro: SU.dirDoLocal(C, reg.largura / 2, reg.largura / 2),
+                 metrosNaTela: M_MAX, giro: 0 };
+
+  /* ---------- buffer da superfície ---------- */
+  var dpr = 1, larguraCss = 0, alturaCss = 0;
+  var buf = null, imgDados = null, bufW = 0, bufH = 0;
+  var RESOLUCAO_BASE = 0.85;   /* fração do CSS: a superfície é pintada abaixo
+                                  da resolução da tela e ampliada. O detalhe
+                                  que importa é o do CAMPO, não o da grade de
+                                  pixels — e isso vale três vezes mais quadro
+                                  por segundo num telefone. */
+
+  function redimensionar() {
+    larguraCss = window.innerWidth;
+    alturaCss = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cvVet.width = Math.round(larguraCss * dpr);
+    cvVet.height = Math.round(alturaCss * dpr);
+    cvVet.style.width = larguraCss + 'px';
+    cvVet.style.height = alturaCss + 'px';
+    var w = Math.max(64, Math.round(larguraCss * RESOLUCAO_BASE));
+    var h = Math.max(64, Math.round(alturaCss * RESOLUCAO_BASE));
+    if (w !== bufW || h !== bufH) {
+      bufW = w; bufH = h;
+      cvSup.width = w; cvSup.height = h;
+      cvSup.style.width = larguraCss + 'px';
+      cvSup.style.height = alturaCss + 'px';
+      ctxSup = cvSup.getContext('2d', { alpha: false });
+      imgDados = ctxSup.createImageData(w, h);
+      buf = { larg: w, alt: h, dados: imgDados.data };
+      C.cache.chave = null;
+    }
+  }
+  window.addEventListener('resize', redimensionar);
+  redimensionar();
+
+  /* =========================================================================
+     O GLOBO SEGUE A MESMA CÂMERA
+
+     A câmera da Fase 1 é (yaw, pitch, dist) em raios do planeta. Converter
+     `metrosNaTela` em `dist` é geometria simples: a meia-largura visível na
+     superfície é tan(fov/2)*(dist-1)*R. Invertendo, dist = 1 + M/(2*tan*R).
+     Assim o globo e a superfície mostram a MESMA extensão de mundo, e o
+     cruzamento entre eles não tem salto de escala.
+     ========================================================================= */
+  var R_METROS = E.raioMetros(m);
+  var FOV = 45 * Math.PI / 180;
+  function distDoZoom(M) {
+    var d = 1 + M / (2 * Math.tan(FOV / 2) * R_METROS);
+    return Math.max(T.CAM_MIN, Math.min(T.CAM_MAX, d));
+  }
+  function apontarGlobo(dir, M) {
+    apiGlobo.definirPlaneta(0, 0);
+    apiGlobo.definirCamera({
+      dist: distDoZoom(M),
+      yaw: Math.atan2(dir.x, dir.z),
+      pitch: Math.max(-T.LIMITE_PITCH, Math.min(T.LIMITE_PITCH,
+        Math.asin(Math.max(-1, Math.min(1, dir.y)))))
+    });
+  }
+
+  /* =========================================================================
+     ORÇAMENTO DE QUADRO
+
+     A superfície é pintada por amostragem: 1 amostra por pixel é o detalhe
+     cheio, 4 é um quarto. O orçamento é explícito e adaptativo: enquanto o
+     dedo está na tela o alvo é curto, para o movimento ficar solto; parado,
+     a página REFINA sozinha, um degrau por vez, até a amostragem 1.
+
+     Isto é a regra do plano cumprida ao pé da letra: orçamento por nível de
+     LOD, medido e mostrado, em vez de "ficou bom".
+     ========================================================================= */
+  var ALVO_MOVENDO = 18;      /* ms */
+  var amostragem = 3;
+  var refinando = false;
+  var ultimoMs = 0, ultimoInfo = null;
+  var msMedia = 16;
+
+  /* ---------- estado de interação ---------- */
+  var rodando = true;
+  var VELOCIDADES = [3600, 21600, 86400, 259200];
+  var iVel = 1;
+  var autoGira = true;
+  var ultimaInteracao = -1e9;
+  var VEL_GIRO_M = 0.055;     /* fração da largura de tela por segundo */
+  var quadro = 0;
+  var alvoLeitura = null;
+  var mostrarMedidor = false;
+
+  /* =========================================================================
+     ENTRADA — um gesto só, do espaço ao chão
+
+     Arrastar move o centro da câmera pelo mundo, em metros, pela MESMA
+     projeção do contrato de endereço. No globo isso vira girar o planeta; no
+     chão, andar. Não existem dois modos, porque não existem dois mundos.
+     ========================================================================= */
+  function moverPor(dxPx, dyPx) {
+    var mPorPx = camara.metrosNaTela / larguraCss;
+    var f = E.frameEmDir(camara.centro);
+    var dLeste = -dxPx * mPorPx;
+    var dNorte = dyPx * mPorPx;
+    camara.centro = E.dirDeslocada(f, dLeste, dNorte, R_METROS);
+    C.cache.chave = null;
+  }
+  function ampliar(fator, ancoraX, ancoraY) {
+    var antes = camara.metrosNaTela;
+    var novo = Math.max(M_MIN, Math.min(M_MAX, antes * fator));
+    if (novo === antes) return;
+    if (ancoraX !== undefined) {
+      /* mantém o ponto sob o dedo parado: desloca o centro pela diferença */
+      var mAntes = antes / larguraCss, mDepois = novo / larguraCss;
+      var offX = (ancoraX - larguraCss / 2), offY = (ancoraY - alturaCss / 2);
+      var f = E.frameEmDir(camara.centro);
+      camara.centro = E.dirDeslocada(f,
+        offX * (mAntes - mDepois), -offY * (mAntes - mDepois), R_METROS);
+    }
+    camara.metrosNaTela = novo;
+    C.cache.chave = null;
+  }
+
+  var toques = {}, nToques = 0, ultimoPinca = 0, arrastou = false, inicioToque = null;
+
+  function pontos(ev) {
+    var r = [];
+    for (var i = 0; i < ev.touches.length; i++) r.push({ x: ev.touches[i].clientX, y: ev.touches[i].clientY });
+    return r;
+  }
+  function marcarInteracao() { ultimaInteracao = performance.now(); amostragem = Math.max(amostragem, 3); refinando = false; }
+
+  cvVet.style.pointerEvents = 'none';
+  var palco = document.getElementById('palco');
+
+  palco.addEventListener('touchstart', function (ev) {
+    marcarInteracao();
+    var p = pontos(ev);
+    nToques = p.length; toques.a = p[0]; toques.b = p[1];
+    arrastou = false;
+    inicioToque = p[0] ? { x: p[0].x, y: p[0].y, t: performance.now() } : null;
+    if (p.length === 2) ultimoPinca = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    ev.preventDefault();
+  }, { passive: false });
+
+  palco.addEventListener('touchmove', function (ev) {
+    marcarInteracao();
+    var p = pontos(ev);
+    if (p.length === 1 && toques.a) {
+      var dx = p[0].x - toques.a.x, dy = p[0].y - toques.a.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) arrastou = true;
+      moverPor(dx, dy);
+      toques.a = p[0];
+    } else if (p.length === 2) {
+      arrastou = true;
+      var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (ultimoPinca > 0 && d > 0) {
+        var cxm = (p[0].x + p[1].x) / 2, cym = (p[0].y + p[1].y) / 2;
+        ampliar(ultimoPinca / d, cxm, cym);
+      }
+      ultimoPinca = d;
+      toques.a = p[0]; toques.b = p[1];
+    }
+    ev.preventDefault();
+  }, { passive: false });
+
+  palco.addEventListener('touchend', function (ev) {
+    marcarInteracao();
+    if (!arrastou && inicioToque && performance.now() - inicioToque.t < 450) {
+      lerPonto(inicioToque.x, inicioToque.y);
+    }
+    nToques = ev.touches.length;
+    if (nToques < 2) ultimoPinca = 0;
+    if (nToques === 0) { toques.a = null; toques.b = null; }
+    else toques.a = { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+    ev.preventDefault();
+  }, { passive: false });
+
+  /* mouse, para quem abrir no computador */
+  var arrastando = false, anterior = null;
+  palco.addEventListener('mousedown', function (ev) {
+    marcarInteracao(); arrastando = true; arrastou = false;
+    anterior = { x: ev.clientX, y: ev.clientY };
+    inicioToque = { x: ev.clientX, y: ev.clientY, t: performance.now() };
+  });
+  window.addEventListener('mousemove', function (ev) {
+    if (!arrastando) return;
+    marcarInteracao();
+    var dx = ev.clientX - anterior.x, dy = ev.clientY - anterior.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) arrastou = true;
+    moverPor(dx, dy);
+    anterior = { x: ev.clientX, y: ev.clientY };
+  });
+  window.addEventListener('mouseup', function (ev) {
+    if (arrastando && !arrastou && inicioToque) lerPonto(inicioToque.x, inicioToque.y);
+    arrastando = false;
+  });
+  palco.addEventListener('wheel', function (ev) {
+    marcarInteracao();
+    ampliar(Math.exp(ev.deltaY * 0.0016), ev.clientX, ev.clientY);
+    ev.preventDefault();
+  }, { passive: false });
+
+  /* =========================================================================
+     LEITURA DO PONTO — o dedo vira endereço, o endereço vira mundo
+     ========================================================================= */
+  function dirDoPixelCss(px, py) {
+    var f = E.frameEmDir(camara.centro);
+    var mPorPx = camara.metrosNaTela / larguraCss;
+    var dL = (px - larguraCss / 2) * mPorPx;
+    var dN = -(py - alturaCss / 2) * mPorPx;
+    return E.dirDeslocada(f, dL, dN, R_METROS);
+  }
+
+  function lerPonto(px, py) {
+    var dir = dirDoPixelCss(px, py);
+    var a = SU.amostrarDir(C, dir, { oitavas: SU.oitavasDoZoom(camara.metrosNaTela) });
+    var end = E.enderecoDeGlobo(T, m, dir);
+    alvoLeitura = { x: px, y: py, dir: dir, t: performance.now() };
+
+    var agua = a.agua.doce ? 'doce' : (a.agua.salgada ? 'salgada, ' + a.agua.profundidade.toFixed(0) + ' m de fundo' : 'nenhuma na superfície');
+    var linhas = [
+      '<b>' + a.biomaNome + '</b>   ' + a.altitude.toFixed(a.altitude > 999 ? 0 : 2) + ' m   ' +
+        a.decliveGraus.toFixed(1) + '°   ' + a.temperatura.toFixed(1) + ' °C',
+      'solo <b>' + a.solo.nome + '</b>  areia ' + (a.solo.areia * 100).toFixed(0) + '%  argila ' +
+        (a.solo.argila * 100).toFixed(0) + '%   umidade ' + (a.umidade * 100).toFixed(0) +
+        '%   fertilidade ' + (a.fertilidade * 100).toFixed(0) + '%',
+      'água ' + agua + '   luz ' + (a.luz.valor * 100).toFixed(0) + '%  sol a ' +
+        a.luz.alturaSolarGraus.toFixed(0) + '°',
+      'autoridade <b>' + a.autoridade + '</b>   ' + E.formatarEndereco(end)
+    ];
+    document.getElementById('leitura').innerHTML = linhas.join('\n');
+  }
+
+  /* =========================================================================
+     VIDA — desenhada do estado, nunca inventada
+     ========================================================================= */
+  var LIMITE_VIDA = 2600;      /* m de tela: acima disso um ser tem menos de
+                                  um pixel e desenhar vira ruído */
+
+  function telaDoLocal(lx, ly, f, mPorPx) {
+    var dir = SU.dirDoLocal(C, lx, ly);
+    var d = E.deslocamentoEntre(f, dir, R_METROS);
+    return { x: larguraCss / 2 + d.leste / mPorPx, y: alturaCss / 2 - d.norte / mPorPx };
+  }
+
+  function desenharVida() {
+    var g = ctxVet;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, larguraCss, alturaCss);
+    if (camara.metrosNaTela > LIMITE_VIDA) return 0;
+
+    var mPorPx = camara.metrosNaTela / larguraCss;
+    var f = E.frameEmDir(camara.centro);
+
+    /* recorte em coordenada local: projeta os quatro cantos e usa a caixa */
+    var cantos = [[0, 0], [larguraCss, 0], [0, alturaCss], [larguraCss, alturaCss]];
+    var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    for (var i = 0; i < 4; i++) {
+      var l = SU.localDaDir(C, dirDoPixelCss(cantos[i][0], cantos[i][1]));
+      if (l.x < minX) minX = l.x; if (l.x > maxX) maxX = l.x;
+      if (l.y < minY) minY = l.y; if (l.y > maxY) maxY = l.y;
+    }
+    var folga = 30;
+    minX -= folga; maxX += folga; minY -= folga; maxY += folga;
+    if (maxX < 0 || minX > C.tam || maxY < 0 || minY > C.tam) return 0;
+
+    var est = amb.regional || amb;
+    var sol = SU.amostrarDir(C, camara.centro).luz;
+    var somE = Math.cos((sol.horaLocal - 12) * 15 * Math.PI / 180);
+    var sombraX = somE * 0.5, sombraY = 0.7;
+    var desenhados = 0;
+
+    /* A LUZ VALE PARA TUDO. Uma árvore iluminada às 00:58 é a definição de
+       animação falsa: ela estaria contando uma hora que o mundo não está
+       vivendo. O mesmo fator que o terreno usa vale aqui.
+
+       E a paleta: as cores de D.FLORA e D.FAUNA são estado, então não são
+       trocadas — são FILTRADAS. Uma única transformação, igual para todas,
+       puxa a saturação para baixo e o matiz para o frio, que é a linguagem
+       visual do projeto. O verde continua sendo o verde daquela espécie; ele
+       só deixa de ser verde de desenho animado. */
+    var luzVida = 0.24 + 0.76 * Math.max(0, Math.min(1, sol.valor));
+    var cacheCor = {};
+    function tinta(hex, k) {
+      var ch = hex + '|' + (k * 16 | 0);
+      var pronto = cacheCor[ch];
+      if (pronto) return pronto;
+      var n = parseInt((hex || '#808080').slice(1), 16);
+      var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+      var luma = r * 0.299 + g * 0.587 + b * 0.114;
+      var DESSAT = 0.46, FRIO = 0.10;
+      r = r + (luma - r) * DESSAT; g = g + (luma - g) * DESSAT; b = b + (luma - b) * DESSAT;
+      b = b + (luma * 1.12 - b) * FRIO;
+      var f = luzVida * k;
+      pronto = 'rgb(' + (Math.max(0, Math.min(255, r * f)) | 0) + ',' +
+                        (Math.max(0, Math.min(255, g * f)) | 0) + ',' +
+                        (Math.max(0, Math.min(255, b * f)) | 0) + ')';
+      cacheCor[ch] = pronto;
+      return pronto;
+    }
+
+    function visivel(p) { return p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY; }
+
+    /* vento no ponto, lido do estado do ambiente. Se o ambiente não expõe
+       campo de vento, cai no vento do clima do world.js — que também é
+       estado. Em nenhum dos dois casos o número é inventado. */
+    function ventoLocal(x, y) {
+      var vx = 0, vy = 0;
+      if (est && est.ventoU && est.ventoV && C.tam) {
+        var i = (Math.min(C.tam - 1, Math.max(0, y | 0)) * C.tam) +
+                Math.min(C.tam - 1, Math.max(0, x | 0));
+        vx = est.ventoU[i] || 0; vy = est.ventoV[i] || 0;
+      } else if (m.clima && m.clima.vento) {
+        vx = m.clima.vento.x || 0; vy = m.clima.vento.y || 0;
+      }
+      return { x: vx, y: vy, modulo: Math.hypot(vx, vy) };
+    }
+
+    /* Água NÃO é desenhada aqui. Rio e lago já saem pintados pela superfície,
+       lidos de reg.prof e reg.aguaZ. Desenhar uma elipse por cima seria a
+       mesma água contada duas vezes, e as duas discordariam na borda. */
+
+    /* --- plantas: copa inclinada pelo vento REAL --- */
+    for (var p = 0; p < m.plantas.length; p++) {
+      var pl = m.plantas[p];
+      if (!pl || !pl.pos || !visivel(pl.pos)) continue;
+      var s = telaDoLocal(pl.pos.x, pl.pos.y, f, mPorPx);
+      if (s.x < -60 || s.x > larguraCss + 60 || s.y < -60 || s.y > alturaCss + 60) continue;
+      var alturaM = pl.altura || 1;
+      /* `pl.copa` é o diâmetro real da copa em metros (world.js:criarPlanta).
+         `pl.tamanho` é altura*0,6, um número do renderizador antigo, e usá-lo
+         desenhava copas com o dobro do tamanho que a planta tem. */
+      var copaM = pl.copa || (pl.tamanho || alturaM * 0.4);
+      var rc = (copaM * 0.5) / mPorPx;
+      if (rc < 0.7) continue;
+
+      /* GRAMÍNEA E RASTEIRA não são copa: são lâmina. Desenhá-las como
+         bolinha some com elas em L4, que é justamente onde elas são a única
+         coisa viva à vista. O ângulo vem do vento real do ambiente. */
+      var defF = D.FLORA[pl.tipo];
+      if (defF && (defF.tipo === 'graminea' || defF.tipo === 'rasteiro' || defF.tipo === 'erva')) {
+        var hg = alturaM / mPorPx;
+        if (hg < 1.2) { desenhados++; continue; }
+        var vento = ventoLocal(pl.pos.x, pl.pos.y);
+        var curva = Math.max(-0.9, Math.min(0.9, vento.x * 0.16 +
+                    Math.sin(m.tempo.segMundo * 0.9 + pl.pos.x * 0.7) * 0.06 * vento.modulo));
+        g.strokeStyle = tinta(pl.cor || '#7cb14e', 1);
+        g.lineWidth = Math.max(0.6, hg * 0.06);
+        var nl = hg > 7 ? 4 : 2;
+        for (var bl = 0; bl < nl; bl++) {
+          var off = (bl - (nl - 1) / 2) * hg * 0.12;
+          var cu = curva * (1 + bl * 0.18);
+          g.beginPath();
+          g.moveTo(s.x + off, s.y);
+          g.quadraticCurveTo(s.x + off + cu * hg * 0.35, s.y - hg * 0.6,
+                             s.x + off + cu * hg, s.y - hg);
+          g.stroke();
+        }
+        desenhados++;
+        continue;
+      }
+
+      var incl = 0;
+      if (est && AM.respostaDaPlantaAoVento && rc > 3) {
+        try {
+          var rv = AM.respostaDaPlantaAoVento(est, pl);
+          incl = Math.max(-0.5, Math.min(0.5, Math.sin(rv.direcao) * rv.inclinacaoGraus * 0.035));
+        } catch (e) { incl = 0; }
+      }
+      /* 2.5D DISCRETO. A altura vira um deslocamento vertical pequeno, não
+         uma projeção 3D. Com 0,42 a copa subia meia tela e a árvore lia como
+         um pirulito flutuando; o tronco ficava comprido demais para conectar
+         as duas partes. 0,16 é o bastante para a copa cobrir a base e dar
+         volume por sobreposição, que é o que o idioma visual pede. */
+      var hPx = Math.min((alturaM / mPorPx) * 0.16, rc * 2.6);
+      var topoX = s.x + incl * hPx, topoY = s.y - hPx;
+
+      /* sombra primeiro */
+      g.globalAlpha = 0.30;
+      g.fillStyle = '#05080a';
+      g.beginPath();
+      g.ellipse(s.x + sombraX * rc * 0.9, s.y + rc * 0.30, rc * 1.02, rc * 0.40, 0, 0, 6.2832);
+      g.fill();
+      g.globalAlpha = 1;
+
+      if (hPx > 2) {
+        g.strokeStyle = tinta('#4a3c30', 1);
+        g.lineWidth = Math.max(0.7, (pl.tronco || 0.2) / mPorPx);
+        g.beginPath(); g.moveTo(s.x, s.y); g.lineTo(topoX, topoY); g.stroke();
+      }
+      g.fillStyle = tinta(pl.cor || '#3d6b46', 1);
+      g.beginPath();
+      g.ellipse(topoX, topoY, rc, rc * 0.78, incl * 0.5, 0, 6.2832);
+      g.fill();
+      /* volume por sobreposição e não por 3D: um segundo lóbulo mais claro
+         no lado do sol. 2.5D discreto, como manda o idioma visual. */
+      if (rc > 3.5) {
+        g.fillStyle = tinta(pl.cor || '#3d6b46', 1.30);
+        g.beginPath();
+        g.ellipse(topoX - sombraX * rc * 0.34, topoY - rc * 0.22,
+                  rc * 0.62, rc * 0.44, incl * 0.5, 0, 6.2832);
+        g.fill();
+      }
+      /* frutos, só quando existem de verdade e cabem na tela */
+      if (pl.frutos > 0 && rc > 6) {
+        g.fillStyle = tinta(pl.corFruto || '#b8442f', 1.1);
+        var nf = Math.min(pl.frutos, 8);
+        for (var q = 0; q < nf; q++) {
+          var ang = (q / nf) * 6.2832 + pl.pos.x;
+          g.beginPath();
+          g.arc(topoX + Math.cos(ang) * rc * 0.62, topoY + Math.sin(ang) * rc * 0.5,
+                Math.max(0.8, rc * 0.09), 0, 6.2832);
+          g.fill();
+        }
+      }
+      desenhados++;
+    }
+
+    /* --- objetos soltos --- */
+    for (var o = 0; o < m.objetos.length; o++) {
+      var ob = m.objetos[o];
+      if (!ob || !ob.pos || ob.empunhado || !visivel(ob.pos)) continue;
+      var so = telaDoLocal(ob.pos.x, ob.pos.y, f, mPorPx);
+      var ro = Math.max(0.6, (ob.tamanho || 0.2) * 0.5 / mPorPx);
+      if (ro < 0.9) continue;
+      g.fillStyle = tinta(ob.cor || '#6d6a66', 1);
+      g.beginPath(); g.ellipse(so.x, so.y, ro, ro * 0.72, 0, 0, 6.2832); g.fill();
+      desenhados++;
+    }
+
+    /* --- animais --- */
+    for (var a2 = 0; a2 < m.animais.length; a2++) {
+      var an = m.animais[a2];
+      if (!an || !an.pos || an.vivo === false || !visivel(an.pos)) continue;
+      var sa = telaDoLocal(an.pos.x, an.pos.y, f, mPorPx);
+      var ra = Math.max(0.9, (an.tamanho || 0.3) * 0.5 / mPorPx);
+      if (ra < 1.1) continue;
+      /* SUBMERSO: um bicho abaixo do nível do mar é visto ATRAVÉS da água.
+         Desenhá-lo opaco e claro por cima do mar é o que fazia sete baleias
+         virarem sete manchas brancas boiando. */
+      var zTerreno = (an.pos.z !== undefined) ? an.pos.z : 0;
+      var submerso = zTerreno < 0;
+      if (submerso) {
+        g.globalAlpha = 0.42;
+      } else {
+        g.globalAlpha = 0.28; g.fillStyle = '#05080a';
+        g.beginPath(); g.ellipse(sa.x, sa.y + ra * 0.5, ra * 1.1, ra * 0.4, 0, 0, 6.2832); g.fill();
+        g.globalAlpha = 1;
+      }
+      g.fillStyle = tinta(an.cor || '#9a8468', submerso ? 0.72 : 1);
+      g.beginPath();
+      g.ellipse(sa.x, sa.y, ra * 1.25, ra * 0.72, an.dir || 0, 0, 6.2832);
+      g.fill();
+      if (ra > 3) {
+        g.beginPath();
+        g.arc(sa.x + Math.cos(an.dir || 0) * ra * 1.2, sa.y + Math.sin(an.dir || 0) * ra * 1.2,
+              ra * 0.42, 0, 6.2832);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+      desenhados++;
+    }
+
+    /* --- NPCs --- */
+    for (var n = 0; n < m.npcs.length; n++) {
+      var np = m.npcs[n];
+      if (!np || !np.pos || np.vivo === false || !visivel(np.pos)) continue;
+      var sn = telaDoLocal(np.pos.x, np.pos.y, f, mPorPx);
+      var rn = Math.max(1.4, 0.45 / mPorPx);
+      g.globalAlpha = 0.3; g.fillStyle = '#05080a';
+      g.beginPath(); g.ellipse(sn.x, sn.y + rn * 0.7, rn * 1.2, rn * 0.4, 0, 0, 6.2832); g.fill();
+      g.globalAlpha = 1;
+      g.fillStyle = tinta('#d9cdb8', 1);
+      g.beginPath(); g.ellipse(sn.x, sn.y - rn * 0.5, rn * 0.55, rn * 1.05, 0, 0, 6.2832); g.fill();
+      g.beginPath(); g.arc(sn.x, sn.y - rn * 1.7, rn * 0.45, 0, 6.2832); g.fill();
+      if (rn > 4) {
+        g.fillStyle = '#8e9a99';
+        g.font = '10px ui-monospace,monospace';
+        g.textAlign = 'center';
+        g.fillText(np.nome || '', sn.x, sn.y - rn * 2.6);
+      }
+      desenhados++;
+    }
+
+    /* --- marca do último toque --- */
+    if (alvoLeitura && performance.now() - alvoLeitura.t < 4000) {
+      var idade = (performance.now() - alvoLeitura.t) / 4000;
+      g.globalAlpha = 1 - idade;
+      g.strokeStyle = '#7fb0a6'; g.lineWidth = 1;
+      var dl = E.deslocamentoEntre(f, alvoLeitura.dir, R_METROS);
+      var mx = larguraCss / 2 + dl.leste / mPorPx, my = alturaCss / 2 - dl.norte / mPorPx;
+      g.beginPath(); g.arc(mx, my, 9 + idade * 14, 0, 6.2832); g.stroke();
+      g.globalAlpha = 1;
+    }
+    return desenhados;
+  }
+
+  /* =========================================================================
+     LAÇO
+     ========================================================================= */
+  var tAnterior = performance.now();
+  var degraus = Array.prototype.slice.call(document.querySelectorAll('.deg'));
+  var elRelogio = document.getElementById('relogio');
+  var elClima = document.getElementById('clima');
+  var elMed = document.getElementById('medidor');
+  var elReguaB = document.getElementById('reguaBarra');
+  var elReguaT = document.getElementById('reguaTexto');
+  var fps = 0, fpsAcc = 0, fpsN = 0, fpsT = tAnterior;
+  var vidaDesenhada = 0;
+
+  function passoDoMundo(dtReal) {
+    if (!rodando) return;
+    var segMundo = dtReal * VELOCIDADES[iVel];
+    /* sub-passos: o motor não foi feito para dar um salto de dez minutos de
+       uma vez. Sessenta segundos por passo, no máximo seis passos por quadro. */
+    var resto = segMundo, n = 0;
+    while (resto > 0.001 && n < 6) {
+      var dt = Math.min(resto, 60);
+      W.tick(m, dt);
+      resto -= dt; n++;
+    }
+    if (quadro % 2 === 0) {
+      try { AM.passoIntegrado(amb, W, m, Math.min(segMundo * 2, 600), {}); } catch (e) { }
+    }
+  }
+
+  function ajustarOrcamento(ms) {
+    msMedia = msMedia * 0.8 + ms * 0.2;
+    if (msMedia > ALVO_MOVENDO && amostragem < 5) { amostragem++; msMedia = ALVO_MOVENDO; }
+    else if (msMedia < ALVO_MOVENDO * 0.45 && amostragem > 1) { amostragem--; msMedia = ALVO_MOVENDO; }
+  }
+
+  /* O REFINAMENTO PRECISA ACONTECER ANTES DE PINTAR, e não depois.
+
+     Na primeira versão ele estava dentro do ramo "o quadro foi mesmo
+     pintado". Parado, o quadro vem do cache, o ramo não roda, a amostragem
+     nunca baixa — e a página ficava congelada em amostragem 4 para sempre,
+     que é exatamente o borrão que apareceu na captura de 60 km. Refinar exige
+     invalidar o cache primeiro; o cache é a razão de o refinamento existir e
+     era também o que o impedia. */
+  /* =========================================================================
+     REFINO EM FAIXAS
+
+     Parado, a página melhora sozinha a imagem até a amostragem 1. Mas fazer
+     isso num quadro só custou meio segundo de tela congelada. Então o refino
+     é feito em FAIXAS: uma fatia horizontal por quadro, cada uma dentro do
+     orçamento, e a imagem vai ficando nítida de cima para baixo enquanto
+     tudo continua andando. O campo é o mesmo em toda faixa, então não existe
+     emenda entre elas — está provado no teste S14, que compara o quadro
+     pintado em faixas com o quadro pintado de uma vez, pixel a pixel.
+     ========================================================================= */
+  var ORCAMENTO_FAIXA = 34;   /* ms — teto de uma faixa */
+  var refino = null;          /* { alvo, faixas, i } */
+
+  function talvezRefinar(parado) {
+    if (!parado) { refino = null; refinando = false; return; }
+
+    if (refino) {
+      var deF = Math.round(refino.i * alturaCss / refino.faixas);
+      var ateF = Math.round((refino.i + 1) * alturaCss / refino.faixas);
+      var esc = bufH / alturaCss;
+      var r = SU.pintarQuadro(C, camara, buf, {
+        amostragem: refino.alvo,
+        faixa: { de: Math.floor(deF * esc), ate: Math.ceil(ateF * esc) },
+        forcar: true
+      });
+      ctxSup.putImageData(imgDados, 0, 0);
+      refino.i++;
+      if (refino.i >= refino.faixas) {
+        amostragem = refino.alvo;
+        C.cache.chave = null;
+        refino = null;
+      }
+      refinando = true;
+      return;
+    }
+
+    if (amostragem <= 1) { refinando = false; return; }
+    /* O custo cresce com o quadrado da amostragem, então o custo do próximo
+       degrau é previsível a partir do atual, e o número de faixas sai da
+       divisão desse custo pelo orçamento de uma faixa. */
+    var previsto = (ultimoMs > 0 ? ultimoMs : 20) *
+                   Math.pow(amostragem / (amostragem - 1), 2);
+    refino = {
+      alvo: amostragem - 1,
+      faixas: Math.max(1, Math.min(24, Math.ceil(previsto / ORCAMENTO_FAIXA))),
+      i: 0
+    };
+    refinando = true;
+  }
+
+  function laco() {
+    var t = performance.now();
+    var dtReal = Math.min((t - tAnterior) / 1000, 0.1);
+    tAnterior = t;
+    quadro++;
+
+    var parado = (t - ultimaInteracao) > 420;
+    if (parado) talvezRefinar(parado);
+    else { refino = null; refinando = false; }
+
+    /* giro automático: só quando ninguém está mexendo e só no nível de globo */
+    if (autoGira && parado && (t - ultimaInteracao) > 2500 &&
+        camara.metrosNaTela > SU.CRUZAMENTO_ALTO) {
+      moverPor(-VEL_GIRO_M * larguraCss * dtReal, 0);
+      refinando = false;
+    }
+
+    passoDoMundo(dtReal);
+
+    var M = camara.metrosNaTela;
+    var pesoSup = SU.pesoDaSuperficie(M);
+    var pesoGlo = 1 - pesoSup;
+
+    /* --- globo --- */
+    /* terra.js tem o próprio laço e desenha sozinho. Aqui só se aponta a
+       câmera dele para a MESMA direção e a MESMA escala. */
+    apontarGlobo(camara.centro, M);
+    cvGlobo.style.opacity = pesoGlo > 0.001 ? '1' : '0';
+
+    /* --- superfície --- */
+    var info = null;
+    if (pesoSup > 0.001) {
+      cvSup.style.opacity = String(pesoSup);
+      info = SU.pintarQuadro(C, camara, buf, { amostragem: amostragem });
+      if (!info.reaproveitado && !refino) {
+        ctxSup.putImageData(imgDados, 0, 0);
+        ultimoMs = info.ms;
+        ultimoInfo = info;
+        if (!parado) ajustarOrcamento(info.ms);
+      }
+      vidaDesenhada = desenharVida();
+      cvVet.style.opacity = String(pesoSup);
+    } else {
+      cvSup.style.opacity = '0';
+      if (vidaDesenhada) { ctxVet.setTransform(1, 0, 0, 1, 0, 0); ctxVet.clearRect(0, 0, cvVet.width, cvVet.height); vidaDesenhada = 0; }
+    }
+
+    /* --- HUD --- */
+    if (quadro % 4 === 0) atualizarHud(M, info);
+
+    fpsN++; fpsAcc += dtReal;
+    if (fpsAcc > 0.5) { fps = fpsN / fpsAcc; fpsN = 0; fpsAcc = 0; }
+
+    requestAnimationFrame(laco);
+  }
+
+  function fmtDist(mm) {
+    if (mm >= 1e6) return (mm / 1e6).toFixed(mm >= 1e7 ? 0 : 1) + ' Mm';
+    if (mm >= 1000) return (mm / 1000).toFixed(mm >= 1e4 ? 0 : 1) + ' km';
+    if (mm >= 1) return mm.toFixed(mm >= 10 ? 0 : 1) + ' m';
+    return (mm * 100).toFixed(0) + ' cm';
+  }
+
+  function atualizarHud(M, info) {
+    var dec = U.decomporTempo(m.tempo.segMundo);
+    var hh = ('0' + dec.hora).slice(-2), mm2 = ('0' + dec.min).slice(-2);
+    elRelogio.textContent = 'dia ' + dec.diaAbs + ' · ' + hh + ':' + mm2;
+    var cl = m.clima && m.clima.tipo ? m.clima.tipo : '—';
+    elClima.textContent = cl + ' · ' + m.npcs.length + ' npc · ' +
+      m.animais.length + ' animais · ' + m.plantas.length + ' plantas · ' +
+      fmtDist(M) + ' de tela';
+
+    var nivel = SU.nivelDoZoom(M);
+    for (var i = 0; i < degraus.length; i++) {
+      degraus[i].classList.toggle('on', degraus[i].getAttribute('data-n') === nivel.id);
+    }
+
+    /* régua: um número redondo de metros que caiba em cerca de 1/4 da tela */
+    var alvoPx = larguraCss * 0.25;
+    var mPorPx = M / larguraCss;
+    var bruto = alvoPx * mPorPx;
+    var pot = Math.pow(10, Math.floor(Math.log(bruto) / Math.LN10));
+    var mant = bruto / pot;
+    var passoR = (mant < 1.5 ? 1 : mant < 3.5 ? 2 : mant < 7.5 ? 5 : 10) * pot;
+    elReguaB.style.width = (passoR / mPorPx).toFixed(0) + 'px';
+    elReguaT.textContent = fmtDist(passoR);
+
+    if (mostrarMedidor) {
+      var l = [];
+      l.push('nivel     ' + nivel.id + ' · ' + nivel.nome);
+      l.push('tela      ' + fmtDist(M) + '   ' + mPorPx.toFixed(mPorPx < 1 ? 3 : 1) + ' m/px');
+      l.push('fps       ' + fps.toFixed(0));
+      l.push('amostra   1 a cada ' + amostragem + '   buffer ' + bufW + 'x' + bufH);
+      l.push('pintura   ' + ultimoMs.toFixed(1) + ' ms' +
+             (refino ? '   refinando para ' + refino.alvo + ', faixa ' +
+                       (refino.i + 1) + '/' + refino.faixas : ''));
+      if (ultimoInfo) {
+        l.push('oitavas   ' + ultimoInfo.oitavas.toFixed(1));
+        l.push('finas     ' + JSON.stringify(ultimoInfo.cortes).replace(/"/g, ''));
+        l.push('grade     ' + ultimoInfo.grade);
+      }
+      l.push('globo     ' + (100 - Math.round(SU.pesoDaSuperficie(M) * 100)) + '%   superficie ' +
+             Math.round(SU.pesoDaSuperficie(M) * 100) + '%');
+      l.push('vida      ' + vidaDesenhada + ' desenhados');
+      l.push('mundo     ' + (m.tempo.segMundo / 86400).toFixed(2) + ' dias');
+      elMed.textContent = l.join('\n');
+    }
+  }
+
+  /* ---------- botões ---------- */
+  document.getElementById('bMais').onclick = function () { marcarInteracao(); ampliar(1 / 1.8); };
+  document.getElementById('bMenos').onclick = function () { marcarInteracao(); ampliar(1.8); };
+  document.getElementById('bIlha').onclick = function () {
+    marcarInteracao();
+    camara.centro = SU.dirDoLocal(C, reg.largura / 2, reg.largura / 2);
+    camara.metrosNaTela = 320;
+    C.cache.chave = null;
+  };
+  document.getElementById('bEspaco').onclick = function () {
+    marcarInteracao();
+    camara.metrosNaTela = M_MAX;
+    C.cache.chave = null;
+  };
+  var bRodar = document.getElementById('bRodar');
+  bRodar.onclick = function () {
+    rodando = !rodando;
+    bRodar.textContent = rodando ? 'rodando' : 'parado';
+    bRodar.classList.toggle('lig', rodando);
+  };
+  var bVel = document.getElementById('bVel');
+  function rotuloVel() {
+    var v = VELOCIDADES[iVel];
+    return (v >= 86400 ? (v / 86400) + ' d/s' : (v / 3600) + ' h/s');
+  }
+  bVel.textContent = rotuloVel();
+  bVel.onclick = function () { iVel = (iVel + 1) % VELOCIDADES.length; bVel.textContent = rotuloVel(); };
+  var bMed = document.getElementById('bMed');
+  bMed.onclick = function () {
+    mostrarMedidor = !mostrarMedidor;
+    elMed.classList.toggle('on', mostrarMedidor);
+    bMed.classList.toggle('lig', mostrarMedidor);
+  };
+
+  /* ---------- abre viva, descendo do espaço até a ilha ---------- */
+  (function abertura() {
+    var t0 = performance.now();
+    var de = M_MAX, para = 900;
+    var dur = 5200;
+    function passo() {
+      var k = Math.min(1, (performance.now() - t0) / dur);
+      var s = k * k * (3 - 2 * k);
+      camara.metrosNaTela = Math.exp(Math.log(de) + (Math.log(para) - Math.log(de)) * s);
+      C.cache.chave = null;
+      if (k < 1 && performance.now() - ultimaInteracao > 1200) requestAnimationFrame(passo);
+    }
+    setTimeout(function () { if (performance.now() - ultimaInteracao > 1200) passo(); }, 900);
+  })();
+
+  window.GENESIS_TERRA = {
+    m: m, reg: reg, amb: amb, C: C, camara: camara, api: apiGlobo,
+    modulos: { U: U, D: D, W: W, AM: AM, SU: SU, T: T, E: E },
+    irPara: function (M, x, y) {
+      if (x !== undefined) camara.centro = SU.dirDoLocal(C, x, y);
+      camara.metrosNaTela = M; C.cache.chave = null; ultimaInteracao = performance.now();
+    },
+    estado: function () {
+      return { metrosNaTela: camara.metrosNaTela, nivel: SU.nivelDoZoom(camara.metrosNaTela).id,
+               pesoSuperficie: SU.pesoDaSuperficie(camara.metrosNaTela),
+               ms: ultimoMs, amostragem: amostragem, fps: fps,
+               segMundo: m.tempo.segMundo, vida: vidaDesenhada };
+    },
+    testes: function () {
+      return { superficie: SU.rodarTestes(C), endereco: E.rodarTestes({ T: T, W: W }) };
+    }
+  };
+
+  requestAnimationFrame(laco);
+})();
+</script>
+</body>
+</html>
