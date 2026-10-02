@@ -1,6 +1,7 @@
 const http = require("node:http");
 const net = require("node:net");
 const crypto = require("node:crypto");
+const { spawn } = require("node:child_process");
 
 const UPSTREAM_HOST = "127.0.0.1";
 const UPSTREAM_PORT = Number(process.env.UPSTREAM_PORT || 3001);
@@ -11,6 +12,16 @@ if (!TOKEN) {
   console.error("STUDIO_ACCESS_TOKEN is required by the Railway auth proxy.");
   process.exit(1);
 }
+
+const claw3d = spawn("node", ["server/index.js"], {
+  cwd: "/opt/claw3d",
+  env: { ...process.env, HOST: "127.0.0.1", PORT: String(UPSTREAM_PORT) },
+  stdio: "inherit",
+});
+claw3d.on("exit", (code, signal) => {
+  console.error(`Claw3D upstream exited (code=${code}, signal=${signal || ""})`);
+  process.exit(code || 1);
+});
 
 function parseCookies(header = "") {
   const out = {};
