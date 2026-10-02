@@ -4,14 +4,16 @@ const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 
 const UPSTREAM_HOST = "127.0.0.1";
-const UPSTREAM_PORT = Number(process.env.UPSTREAM_PORT || 3001);
-const PORT = Number(process.env.PORT || 3000);
+const UPSTREAM_PORT = 3001;
+const PORT = 3000;
 const TOKEN = String(process.env.STUDIO_ACCESS_TOKEN || "").trim();
 
 if (!TOKEN) {
   console.error("STUDIO_ACCESS_TOKEN is required by the Railway auth proxy.");
   process.exit(1);
 }
+
+console.log(`Starting Claw3D upstream on ${UPSTREAM_HOST}:${UPSTREAM_PORT}; public proxy on 0.0.0.0:${PORT}`);
 
 const claw3d = spawn("node", ["server/index.js"], {
   cwd: "/opt/claw3d",
