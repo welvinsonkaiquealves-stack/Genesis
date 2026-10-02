@@ -1,0 +1,7 @@
+{
+  "name": "sofia-claw3d-access",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {"start": "node server.js"},
+  "engines": {"node": ">=20"}
+}
